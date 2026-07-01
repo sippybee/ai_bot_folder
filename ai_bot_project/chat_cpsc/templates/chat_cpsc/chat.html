@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Azure OpenAI Chat</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #f0f2f5;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .chat-container {
+        width: 100%;
+        max-width: 750px;
+        height: 90vh;
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .chat-header {
+        background: #0078d4;
+        color: #fff;
+        padding: 18px 24px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .chat-header .avatar {
+        width: 40px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.25);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+      .chat-header h2 {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .chat-header p {
+        font-size: 12px;
+        opacity: 0.85;
+      }
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .message {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        max-width: 80%;
+        animation: fadeIn 0.25s ease;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .message.user {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+      }
+      .message.bot {
+        align-self: flex-start;
+      }
+      .message .msg-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      .message.user .msg-avatar {
+        background: #0078d4;
+        color: #fff;
+      }
+      .message.bot .msg-avatar {
+        background: #e8f0fe;
+        color: #0078d4;
+      }
+      .message .bubble {
+        padding: 12px 16px;
+        border-radius: 18px;
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .message.user .bubble {
+        background: #0078d4;
+        color: #fff;
+        border-bottom-right-radius: 4px;
+      }
+      .message.bot .bubble {
+        background: #f1f3f4;
+        color: #1a1a1a;
+        border-bottom-left-radius: 4px;
+      }
+      .message .timestamp {
+        font-size: 10px;
+        color: #aaa;
+        margin-top: 4px;
+      }
+      .typing-indicator {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 0 20px 12px;
+      }
+      .typing-indicator.active {
+        display: flex;
+      }
+      .typing-indicator .dots {
+        background: #f1f3f4;
+        border-radius: 18px;
+        padding: 10px 16px;
+        display: flex;
+        gap: 4px;
+      }
+      .typing-indicator .dots span {
+        width: 7px;
+        height: 7px;
+        background: #aaa;
+        border-radius: 50%;
+        animation: bounce 1.2s infinite;
+      }
+      .typing-indicator .dots span:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .typing-indicator .dots span:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes bounce {
+        0%,
+        60%,
+        100% {
+          transform: translateY(0);
+        }
+        30% {
+          transform: translateY(-6px);
+        }
+      }
+      .prompt-panel {
+        background: #fafafa;
+        border-top: 1px solid #e8e8e8;
+        padding: 12px 20px;
+      }
+      .prompt-panel label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: block;
+        margin-bottom: 6px;
+      }
+      .prompt-display {
+        font-size: 13px;
+        color: #444;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px 14px;
+        min-height: 50px;
+        max-height: 100px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        line-height: 1.5;
+      }
+      /* Badge shown on GET load */
+      .prompt-badge {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        background: #e8f4fd;
+        color: #0078d4;
+        border: 1px solid #b3d9f7;
+        border-radius: 4px;
+        padding: 2px 6px;
+        margin-bottom: 6px;
+        letter-spacing: 0.3px;
+      }
+      .chat-input-area {
+        padding: 16px 20px;
+        border-top: 1px solid #e8e8e8;
+        background: #fff;
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+      }
+      .chat-input-area textarea {
+        flex: 1;
+        border: 1.5px solid #ddd;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-family: inherit;
+        resize: none;
+        outline: none;
+        max-height: 120px;
+        overflow-y: auto;
+        transition: border-color 0.2s;
+        line-height: 1.5;
+      }
+      .chat-input-area textarea:focus {
+        border-color: #0078d4;
+      }
+      .send-btn {
+        background: #0078d4;
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          transform 0.1s;
+      }
+      .send-btn:hover {
+        background: #005fa3;
+      }
+      .send-btn:active {
+        transform: scale(0.97);
+      }
+      .send-btn:disabled {
+        background: #b0c4d8;
+        cursor: not-allowed;
+      }
+      .welcome {
+        text-align: center;
+        color: #aaa;
+        font-size: 14px;
+        margin: auto;
+      }
+      .welcome .icon {
+        font-size: 40px;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chat-container">
+      <!-- Header -->
+      <div class="chat-header">
+        <div class="avatar">🤖</div>
+        <div>
+          <h2>Azure OpenAI Chat</h2>
+          <p>Powered by o4-mini</p>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="chat-messages" id="chatMessages">
+        <div class="welcome" id="welcomeMsg">
+          <div class="icon">💬</div>
+          <p>Send a message to start the conversation</p>
+        </div>
+      </div>
+
+      <!-- Typing indicator -->
+      <div class="typing-indicator" id="typingIndicator">
+        <div
+          class="msg-avatar"
+          style="
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #e8f0fe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+          "
+        >
+          🤖
+        </div>
+        <div class="dots"><span></span><span></span><span></span></div>
+      </div>
+
+      <!-- Prompt panel — pre-filled by Django context on GET -->
+      <div class="prompt-panel">
+        <label>📋 Rendered Prompt</label>
+        <span class="prompt-badge" id="promptBadge">GET — initial load</span>
+        <div class="prompt-display" id="promptDisplay">
+          {{ rendered_prompt }}
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="chat-input-area">
+        <textarea
+          id="messageInput"
+          rows="1"
+          placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn">Send ➤</button>
+      </div>
+    </div>
+
+    <script>
+      const chatMessages = document.getElementById("chatMessages");
+      const messageInput = document.getElementById("messageInput");
+      const sendBtn = document.getElementById("sendBtn");
+      const typingIndicator = document.getElementById("typingIndicator");
+      const promptDisplay = document.getElementById("promptDisplay");
+      const promptBadge = document.getElementById("promptBadge");
+      const welcomeMsg = document.getElementById("welcomeMsg");
+
+      // Auto-resize textarea
+      messageInput.addEventListener("input", () => {
+        messageInput.style.height = "auto";
+        messageInput.style.height =
+          Math.min(messageInput.scrollHeight, 120) + "px";
+      });
+
+      // Enter to send, Shift+Enter for newline
+      messageInput.addEventListener("keydown", e => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      sendBtn.addEventListener("click", sendMessage);
+
+      function getCookie(name) {
+        const match = document.cookie.match(
+          new RegExp("(^| )" + name + "=([^;]+)"),
+        );
+        return match ? match[2] : null;
+      }
+
+      function getTime() {
+        return new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function escapeHtml(text) {
+        return text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function appendMessage(role, text) {
+        if (welcomeMsg && welcomeMsg.parentNode) welcomeMsg.remove();
+        const isUser = role === "user";
+        const div = document.createElement("div");
+        div.className = `message ${isUser ? "user" : "bot"}`;
+        div.innerHTML = `
+          <div class="msg-avatar">${isUser ? "🧑" : "🤖"}</div>
+          <div>
+            <div class="bubble">${escapeHtml(text)}</div>
+            <div class="timestamp">${getTime()}</div>
+          </div>
+        `;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      async function sendMessage() {
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        appendMessage("user", message);
+
+        // Show building state
+        promptBadge.textContent = "POST — building...";
+        promptBadge.style.background = "#fff8e1";
+        promptBadge.style.color = "#f59e0b";
+        promptBadge.style.borderColor = "#fcd34d";
+        promptDisplay.textContent = "⏳ Building prompt...";
+
+        messageInput.value = "";
+        messageInput.style.height = "auto";
+        sendBtn.disabled = true;
+        typingIndicator.classList.add("active");
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        try {
+          const response = await fetch("/api/chat/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCookie("csrftoken"),
+            },
+            body: JSON.stringify({message}),
+          });
+
+          const data = await response.json();
+          typingIndicator.classList.remove("active");
+
+          // Update badge to POST — done
+          promptBadge.textContent = "POST — rendered";
+          promptBadge.style.background = "#e8f5e9";
+          promptBadge.style.color = "#2e7d32";
+          promptBadge.style.borderColor = "#a5d6a7";
+
+          // Show prompt returned by the Django view
+          if (data.prompt) {
+            promptDisplay.textContent = data.prompt;
+          }
+
+          if (data.reply) {
+            appendMessage("bot", data.reply);
+          } else {
+            appendMessage(
+              "bot",
+              "⚠️ Error: " + (data.error || "Unknown error"),
+            );
+          }
+        } catch (err) {
+          typingIndicator.classList.remove("active");
+          promptBadge.textContent = "POST — failed";
+          promptBadge.style.background = "#fdecea";
+          promptBadge.style.color = "#c62828";
+          promptBadge.style.borderColor = "#ef9a9a";
+          appendMessage("bot", "⚠️ Network error: " + err.message);
+        }
+
+        sendBtn.disabled = false;
+        messageInput.focus();
+      }
+    </script>
+  </body>
+</html>
